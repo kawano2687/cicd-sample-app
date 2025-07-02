@@ -3,6 +3,9 @@ on: [ push ]    # トリガーの定義 (pushをトリガー)
 
 # 環境変数を定義
 env:
+  IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
+  REGISTRY_USER: ${{ github.actor }}
+  REGISTRY_PASSWORD: ${{ github.token }}
   APP_NAME: health-record # アプリケーション名
   IMAGE_TAGS: latest ${{ github.sha }} # イメージタグ (latest とコミットハッシュを付与)
 
@@ -18,9 +21,20 @@ jobs:
 
       # S2I を使ってアプリケーションのコンテナイメージをビルド
       - name: Setup and Build
+        id: build_image
         uses: redhat-actions/s2i-build@v2 # RedHat 提供の S2I GitHub Action を使用
         with:
           image: ${{ env.APP_NAME }}      # 出力されるイメージ名
           tags: ${{ env.IMAGE_TAGS }}     # タグを複数指定
           path_context: site              # ビルド対象ディレクトリ
           builder_image: 'registry.access.redhat.com/ubi9/nodejs-20:9.6-1750885770' # 使用するビルダーイメージ
+      
+      # Push image to the GitHub container registry
+      - name: Push To GitHub container registry
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: ${{ steps.build_image.outputs.image }}
+          tags: ${{ steps.build_image.outputs.tags }}
+          registry: ${{ env.IMAGE_REGISTRY }}
+          username: ${{ env.REGISTRY_USER }}
+          password: ${{ env.REGISTRY_PASSWORD }}
