@@ -14,6 +14,9 @@ jobs:
   build: # 任意のジョブ名
     runs-on: ubuntu-latest # GitHub が提供する Ubuntu 仮想マシンで実行
     name: build            # GitHub UI に表示されるジョブ名
+    permissions:
+      contents: read
+      packages: write
     steps:
       # リポジトリのコードをチェックアウト
       - name: Checkout
