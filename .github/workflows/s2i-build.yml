@@ -31,7 +31,15 @@ jobs:
           tags: ${{ env.IMAGE_TAGS }}     # タグを複数指定
           path_context: site              # ビルド対象ディレクトリ
           builder_image: 'registry.access.redhat.com/ubi9/nodejs-20:9.6-1750885770' # 使用するビルダーイメージ
-      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: '${{ env.IMAGE_REGISTRY }}/${{ env.APP_NAME }}:${{ github.sha }}'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'      
       # Push image to the GitHub container registry
       - name: Push To GitHub container registry
         uses: redhat-actions/push-to-registry@v2
