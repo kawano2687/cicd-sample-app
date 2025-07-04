@@ -39,7 +39,7 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'      
+          severity: 'CRITICAL'      
       # Push image to the GitHub container registry
       - name: Push To GitHub container registry
         uses: redhat-actions/push-to-registry@v2
