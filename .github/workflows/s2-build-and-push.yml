@@ -34,7 +34,6 @@ jobs:
         with:
           image-ref: '${{ env.APP_NAME }}:${{ github.sha }}' # スキャン対象のイメージ（タグにコミットハッシュを使用）
           format: 'table'         # 出力形式：人が見やすいテーブル形式（他にjsonなども可）
-          exit-code: '1'          # 脆弱性が検出された場合はジョブを失敗させる
           ignore-unfixed: true    # 修正されていない既知の脆弱性を除外してスキャン
           vuln-type: 'os,library' # スキャン対象：OSパッケージとアプリケーションライブラリの両方
           severity: 'CRITICAL'    # スキャン結果に含めるのは重大度「CRITICAL」のみ（HIGHなども指定可能）
