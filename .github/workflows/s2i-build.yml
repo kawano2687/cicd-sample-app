@@ -1,0 +1,26 @@
+name: S2I build # ワークフローの名前
+on: [ push ]    # トリガーの定義 (pushをトリガー)
+
+# 環境変数を定義
+env:
+  APP_NAME: health-record # アプリケーション名
+  IMAGE_TAGS: latest ${{ github.sha }} # イメージタグ (latest とコミットハッシュを付与)
+
+# ジョブを定義
+jobs:
+  build: # 任意のジョブ名
+    runs-on: ubuntu-latest # GitHub が提供する Ubuntu 仮想マシンで実行
+    name: build            # GitHub UI に表示されるジョブ名
+    steps:
+      # リポジトリのコードをチェックアウト
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # S2I を使ってアプリケーションのコンテナイメージをビルド
+      - name: Setup and Build
+        uses: redhat-actions/s2i-build@v2 # RedHat 提供の S2I GitHub Action を使用
+        with:
+          image: ${{ env.APP_NAME }}      # 出力されるイメージ名
+          tags: ${{ env.IMAGE_TAGS }}     # タグを複数指定
+          path_context: site              # ビルド対象ディレクトリ
+          builder_image: 'registry.access.redhat.com/ubi9/nodejs-20:9.6-1750885770' # 使用するビルダーイメージ
