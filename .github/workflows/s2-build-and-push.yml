@@ -1,0 +1,50 @@
+name: S2I build and push # ワークフローの名前
+on: [ push ]
+
+env:
+  IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }} # レジストリ名
+  REGISTRY_USER: ${{ github.actor }}     # レジストリのユーザー名
+  REGISTRY_PASSWORD: ${{ github.token }} # レジストリの認証用トークン
+  APP_NAME: health-record
+  IMAGE_TAGS: latest ${{ github.sha }}
+
+jobs:
+  build-and-push: # 任意のジョブ名
+    runs-on: ubuntu-latest
+    name: build
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup and Build
+        id: build_image                   # 後続のステップで参照する識別子を設定
+        uses: redhat-actions/s2i-build@v2
+        with:
+          image: ${{ env.APP_NAME }}
+          tags: ${{ env.IMAGE_TAGS }}
+          path_context: site
+          builder_image: 'registry.access.redhat.com/ubi9/nodejs-20:9.6-1750885770'
+
+      # Trivy によるコンテナイメージの脆弱性スキャンを実行
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.28.0 # Trivy公式のGitHub Actionを使用
+        with:
+          image-ref: '${{ env.APP_NAME }}:${{ github.sha }}' # スキャン対象のイメージ（タグにコミットハッシュを使用）
+          format: 'table'         # 出力形式：人が見やすいテーブル形式（他にjsonなども可）
+          exit-code: '1'          # 脆弱性が検出された場合はジョブを失敗させる
+          ignore-unfixed: true    # 修正されていない既知の脆弱性を除外してスキャン
+          vuln-type: 'os,library' # スキャン対象：OSパッケージとアプリケーションライブラリの両方
+          severity: 'CRITICAL'    # スキャン結果に含めるのは重大度「CRITICAL」のみ（HIGHなども指定可能）
+
+      # コンテナイメージを GitHub コンテナレジストリにプッシュ
+      - name: Push To GitHub container registry
+        uses: redhat-actions/push-to-registry@v2 # Red Hat 提供の push 専用 GitHub Action を使用
+        with:
+          image: ${{ steps.build_image.outputs.image }} # ビルドステップ（id: build_image）で出力されたイメージ名
+          tags: ${{ steps.build_image.outputs.tags }}   # 同様にビルドステップで指定されたタグ
+          registry: ${{ env.IMAGE_REGISTRY }}           # プッシュ先のレジストリ URL
+          username: ${{ env.REGISTRY_USER }}            # レジストリへのログインユーザー名（GitHub の場合は ${{ github.actor }} でも可）
+          password: ${{ env.REGISTRY_PASSWORD }}        # レジストリ用のアクセストークン（GitHub なら Personal Access TokenやGitHub Token）
