@@ -21,7 +21,11 @@
     "cfenv": "^1.1.0",
     "express": "^4.16.4",
     "log4js": "^3.0.6",
-    "request": "^2.88.0"
+    "request": "^2.88.0",
+    "form-data": "^4.0.4"
+  },
+  "overrides": {
+    "form-data": "^4.0.4"
   },
   "engines": {
     "node": "6.x"
