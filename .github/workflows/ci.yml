@@ -1,0 +1,85 @@
+name: CI - Build and Push Image
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # 手動実行を許可
+
+env:
+  APP_NAME: health-record
+  IMAGE_REGISTRY: ${{ secrets.IMAGE_REGISTRY }}
+  IMAGE_NAMESPACE: demo-develop
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    
+    # 最小権限の原則: 必要な権限のみを付与
+    permissions:
+      contents: read      # リポジトリの読み取り
+      packages: write     # コンテナレジストリへの書き込み
+    
+    steps:
+      - name: Checkout application code
+        uses: actions/checkout@v4
+      
+      # イメージタグを Git SHA から生成（再現性のため）
+      - name: Determine image tag
+        id: image-tag
+        run: |
+          echo "tag=sha-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+          echo "full_image=${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/${APP_NAME}:sha-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+      
+      # Red Hat の S2I Action を使用してイメージをビルド
+      # Dockerfile 不要で、ソースコードから直接イメージを生成
+      - name: Build image with S2I
+        id: build-image
+        uses: redhat-actions/s2i-build@v2
+        with:
+          path_context: site
+          # Red Hat UBI8 (Universal Base Image) の Node.js 18 ビルダー
+          builder_image: 'registry.access.redhat.com/ubi8/nodejs-18'
+          image: ${{ env.APP_NAME }}
+          tags: ${{ steps.image-tag.outputs.tag }}
+      
+      # ビルドしたイメージをレジストリにプッシュ
+      # OpenShift イメージレジストリは認証なしで参照可能な設定のため、podman-login は不要
+      - name: Push image to registry
+        id: push-image
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: ${{ steps.build-image.outputs.image }}
+          tags: ${{ steps.build-image.outputs.tags }}
+          registry: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAMESPACE }}
+      
+      # プッシュしたイメージの URL を出力
+      - name: Print image URL
+        run: |
+          echo "Image pushed to: ${{ steps.push-image.outputs.registry-path }}"
+      
+      # Gitea のマニフェストリポジトリを更新
+      - name: Update manifest repository
+        env:
+          GITEA_HOSTNAME: ${{ secrets.GITEA_HOSTNAME }}
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+          GITEA_USER: ${{ secrets.GITEA_USER }}
+          IMAGE_TAG: ${{ steps.image-tag.outputs.tag }}
+          FULL_IMAGE: ${{ steps.image-tag.outputs.full_image }}
+        run: |
+          # Git の設定
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Gitea リポジトリをクローン
+          git clone http://${GITEA_USER}:${GITEA_TOKEN}@${GITEA_HOSTNAME}/gitea/cd-sample.git
+          cd cd-sample/deploy/base
+          
+          # Deployment マニフェストのイメージタグを更新
+          sed -i "s|image: .*$|image: ${FULL_IMAGE}|g" health-deploy.yaml
+          
+          # 変更をコミットしてプッシュ
+          git add health-deploy.yaml
+          git commit -m "chore: update image to ${IMAGE_TAG}"
+          git push http://${GITEA_USER}:${GITEA_TOKEN}@${GITEA_HOSTNAME}/gitea/cd-sample.git main
+
